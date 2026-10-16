@@ -17,7 +17,7 @@ if __package__:
     from .models import AgentRequest, AgentTrace, WorkflowState
     from .services.agent_client import generate_json
     from Exercise2.backend.workflow.workflow import build_agent_loop, build_agent_payload as _build_agent_payload
-    from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS
+    from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS, RUNS_DIR
 else:
     backend_parent = Path(__file__).resolve().parents[2]
     if str(backend_parent) not in sys.path:
@@ -28,9 +28,7 @@ else:
         build_agent_loop,
         build_agent_payload as _build_agent_payload,
     )
-    from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS
-
-RUNS_DIR = Path(__file__).resolve().parent / "generated" / "agent_runs"
+    from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS, RUNS_DIR
 
 __all__ = [
     "AgentRequest",

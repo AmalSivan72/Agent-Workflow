@@ -148,7 +148,7 @@ def build_agent_payload(
             },
             {
                 "name": "Code Generator",
-                "role": "Implements the specification and fixes real test failures",
+                "role": "Creates the first implementation draft; Code Fixer uses actual pytest failures on the final attempt",
                 "trace": result["code_generator"],
             },
             {

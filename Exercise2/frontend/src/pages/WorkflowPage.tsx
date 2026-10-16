@@ -52,6 +52,7 @@ function WorkflowPage() {
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
   const [traversedEdges, setTraversedEdges] = useState<string[]>([]);
+  const [failedEdges, setFailedEdges] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState('requirement');
   const [activeTab, setActiveTab] = useState<TraceSection>('input');
   const [selectedToolInvocationId, setSelectedToolInvocationId] = useState<string | null>(null);
@@ -85,19 +86,30 @@ function WorkflowPage() {
     () =>
       baseEdges.map((edge) => ({
         ...edge,
-        animated: loading && edge.id === activeEdgeId,
+        animated: loading && edge.id === activeEdgeId && !failedEdges.includes(edge.id),
         style: {
           ...edge.style,
-          stroke: edge.id === activeEdgeId
-            ? '#8b5cf6'
-            : traversedEdges.includes(edge.id)
-              ? '#a78bfa'
-              : edge.style?.stroke,
-          strokeWidth: edge.id === activeEdgeId ? 3 : 2,
+          stroke: failedEdges.includes(edge.id)
+            ? '#dc2626'
+            : loading && edge.id === activeEdgeId
+              ? '#7c3aed'
+              : traversedEdges.includes(edge.id)
+                ? '#16a34a'
+                : '#75658f',
+          strokeWidth: loading && edge.id === activeEdgeId ? 3.5 : 2.5,
         },
-        markerEnd: { type: MarkerType.ArrowClosed, color: edge.id === activeEdgeId ? '#8b5cf6' : undefined },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: failedEdges.includes(edge.id)
+            ? '#dc2626'
+            : loading && edge.id === activeEdgeId
+              ? '#7c3aed'
+              : traversedEdges.includes(edge.id)
+                ? '#16a34a'
+                : '#75658f',
+        },
       })),
-    [activeEdgeId, loading, traversedEdges],
+    [activeEdgeId, failedEdges, loading, traversedEdges],
   );
 
   const handleRunAgent = async () => {
@@ -111,6 +123,7 @@ function WorkflowPage() {
     setActiveNodeId(null);
     setActiveEdgeId(null);
     setTraversedEdges([]);
+    setFailedEdges([]);
     setSelectedNodeId('requirement');
     setActiveTab('input');
     setSelectedToolInvocationId(null);
@@ -213,6 +226,8 @@ function WorkflowPage() {
             const toolEdgeId = toolEdgeIds[toolCall.node];
             if (toolEdgeId && toolCall.status === 'success') {
               setTraversedEdges((current) => [...new Set([...current, toolEdgeId])]);
+            } else if (toolEdgeId) {
+              setFailedEdges((current) => [...new Set([...current, toolEdgeId])]);
             }
             if (ownerId) {
               currentFlowNodeId = ownerId;
@@ -237,13 +252,17 @@ function WorkflowPage() {
               requirement: 'success',
               generator: 'success',
               coder: 'success',
-              reviewer: 'success',
+              reviewer: event.result?.status === 'completed' ? 'success' : 'warning',
               complete: event.result?.status === 'completed' ? 'success' : 'warning',
             }));
             const completionEdge = 'e-reviewer-complete';
             setActiveNodeId('complete');
             setActiveEdgeId(completionEdge);
-            setTraversedEdges((current) => [...new Set([...current, completionEdge])]);
+            if (event.result.status === 'completed') {
+              setTraversedEdges((current) => [...new Set([...current, completionEdge])]);
+            } else {
+              setFailedEdges((current) => [...new Set([...current, completionEdge])]);
+            }
             setSelectedNodeId('reviewer');
             setActiveTab('output');
             receivedCompleteEvent = true;
@@ -259,6 +278,9 @@ function WorkflowPage() {
       if (currentFlowNodeId) {
         setNodeStatuses((current) => ({ ...current, [currentFlowNodeId!]: 'warning' }));
       }
+      if (currentAgentEdgeId) {
+        setFailedEdges((current) => [...new Set([...current, currentAgentEdgeId!])]);
+      }
     } finally {
       setLoading(false);
     }
@@ -272,6 +294,7 @@ function WorkflowPage() {
     setActiveNodeId(null);
     setActiveEdgeId(null);
     setTraversedEdges([]);
+    setFailedEdges([]);
     setSelectedNodeId('requirement');
     setActiveTab('input');
     setSelectedToolInvocationId(null);

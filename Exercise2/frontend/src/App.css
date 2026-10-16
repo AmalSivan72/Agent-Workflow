@@ -3,7 +3,7 @@
   width: 160px;
   min-height: 88px;
   padding: 10px 11px;
-  border: 1px solid #ddd6fe;
+  border: 1.5px solid #8f83a8;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 7px 18px rgb(71 45 128 / 9%);
@@ -13,7 +13,7 @@
 }
 
 .agent-node:hover {
-  border-color: #a78bfa;
+  border-color: #6d28d9;
   box-shadow: 0 9px 23px rgb(91 57 166 / 15%);
   transform: translateY(-1px);
 }
@@ -22,18 +22,8 @@
   cursor: grabbing;
 }
 
-.agent-node.selected,
-.agent-node.active {
-  border-color: #8b5cf6;
+.agent-node.selected {
   box-shadow: 0 0 0 3px rgb(139 92 246 / 15%), 0 8px 22px rgb(91 57 166 / 13%);
-}
-
-.agent-node.success {
-  border-color: #86efac;
-}
-
-.agent-node.warning {
-  border-color: #fda4af;
 }
 
 .agent-node.agent {
@@ -41,24 +31,43 @@
 }
 
 .agent-node.tool {
-  border-style: dashed;
+  border-style: solid;
   background: #fdfaff;
 }
 
 .agent-node.input {
-  border-left: 3px solid #8b5cf6;
+  border-left-width: 3px;
   background: #faf8ff;
 }
 
 .agent-node.terminal {
-  border-right: 3px solid #8b5cf6;
+  border-right-width: 3px;
   background: #f8f6ff;
+}
+
+.agent-node.active,
+.agent-node.agent.active,
+.agent-node.tool.active {
+  border-color: #6d28d9;
+  box-shadow: 0 0 0 3px rgb(139 92 246 / 15%), 0 8px 22px rgb(91 57 166 / 13%);
+}
+
+.agent-node.success,
+.agent-node.agent.success,
+.agent-node.tool.success {
+  border-color: #15803d;
+}
+
+.agent-node.warning,
+.agent-node.agent.warning,
+.agent-node.tool.warning {
+  border-color: #be123c;
 }
 
 .node-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 6px;
   font-size: 11px;
 }
@@ -67,25 +76,43 @@
   line-height: 1.35;
 }
 
+.node-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.agent-icon {
+  color: #6d28d9;
+}
+
+.tool-icon {
+  color: #a21caf;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #c4b5fd;
+  background: #9588aa;
 }
 
 .agent-node.active .status-dot {
-  background: #8b5cf6;
+  background: #7c3aed;
   animation: status-pulse 1.2s ease-in-out infinite;
 }
 
 .agent-node.success .status-dot {
-  background: #22c55e;
+  background: #16a34a;
 }
 
 .agent-node.warning .status-dot {
-  background: #f43f5e;
+  background: #dc2626;
 }
 
 .node-body {
@@ -100,9 +127,9 @@
   width: fit-content;
   align-items: center;
   padding: 2px 6px;
-  border: 1px solid #ede9fe;
+  border: 1px solid #c4b9d6;
   border-radius: 999px;
-  color: #7c3aed;
+  color: #6d28d9;
   font-size: 8px;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -111,7 +138,7 @@
 }
 
 .agent-node.tool .node-kind {
-  border-color: #f5d0fe;
+  border-color: #d8a9df;
   color: #a21caf;
 }
 
@@ -119,23 +146,28 @@
   width: 8px;
   height: 8px;
   border: 1.5px solid #fff;
-  background: #8b5cf6;
+  background: #6d28d9;
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .react-flow__edge-text {
-  fill: #716c81;
+  fill: #514663;
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .react-flow__edge-textbg {
   fill: #fff;
-  fill-opacity: 0.94;
+  fill-opacity: 0.96;
 }
 
 .react-flow__panel {
   overflow: hidden;
-  border: 1px solid #ede9fe;
+  border: 1px solid #d8cfe5;
   border-radius: 9px;
   background: rgb(255 255 255 / 96%);
   box-shadow: 0 3px 10px rgb(71 45 128 / 8%);

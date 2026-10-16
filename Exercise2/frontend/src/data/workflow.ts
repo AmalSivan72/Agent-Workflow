@@ -162,7 +162,7 @@ export const baseEdges: Edge[] = [
     sourceHandle: 'loop-source',
     target: 'coder',
     targetHandle: 'loop-target',
-    label: 'pytest failed · retry (max 3)',
+    label: 'pytest failed · retry (max 2)',
     animated: false,
     markerEnd: { type: MarkerType.ArrowClosed },
     style: { stroke: '#f0abfc', strokeWidth: 2 },

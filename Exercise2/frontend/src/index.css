@@ -1,0 +1,45 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-brand: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  font-family: "DM Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #0f172a;
+  background: #f8f7fc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(167 139 250 / 55%);
+  outline-offset: 2px;
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

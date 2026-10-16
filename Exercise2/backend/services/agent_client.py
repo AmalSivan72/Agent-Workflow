@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+
+ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(ENV_FILE)
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+
+@lru_cache(maxsize=1)
+def get_gemini_client() -> genai.Client:
+    """Return a cached Gemini client configured from backend/.env or the environment."""
+    load_dotenv(ENV_FILE)
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Set GEMINI_API_KEY in backend/.env or the environment before running the agent.")
+    return genai.Client(api_key=api_key)
+
+
+def generate_json(prompt: str) -> str:
+    """Generate an agent trace as a JSON object."""
+    response = get_gemini_client().models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema={
+                "type": "OBJECT",
+                "properties": {
+                    "input": {"type": "STRING"},
+                    "thinking": {"type": "STRING"},
+                    "output": {"type": "STRING"},
+                },
+                "required": ["input", "thinking", "output"],
+                "propertyOrdering": ["input", "thinking", "output"],
+            },
+        ),
+    )
+    return getattr(response, "text", "") or ""

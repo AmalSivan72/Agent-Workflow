@@ -1,10 +1,11 @@
 type WorkflowHeaderProps = {
   loading: boolean;
+  disabled?: boolean;
   onReset: () => void;
   onRun: () => void;
 };
 
-export function WorkflowHeader({ loading, onReset, onRun }: WorkflowHeaderProps) {
+export function WorkflowHeader({ loading, disabled = false, onReset, onRun }: WorkflowHeaderProps) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-300 bg-white px-4 py-2.5 sm:px-6 lg:h-[60px] lg:flex-nowrap lg:px-8 lg:py-2">
       <div className="flex items-center gap-3">
@@ -25,7 +26,7 @@ export function WorkflowHeader({ loading, onReset, onRun }: WorkflowHeaderProps)
         <button
           type="button"
           onClick={onReset}
-          disabled={loading}
+          disabled={loading || disabled}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-wait disabled:opacity-50"
         >
           Reset
@@ -33,7 +34,7 @@ export function WorkflowHeader({ loading, onReset, onRun }: WorkflowHeaderProps)
         <button
           type="button"
           onClick={onRun}
-          disabled={loading}
+          disabled={loading || disabled}
           className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-violet-200 transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
         >
           {loading ? (

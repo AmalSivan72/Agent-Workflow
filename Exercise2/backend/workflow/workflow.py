@@ -142,16 +142,19 @@ def build_agent_payload(
         },
         "agents": [
             {
+                "id": "test_case_generator",
                 "name": "Test Case Generator",
                 "role": "Generates all specification-based acceptance tests",
                 "trace": result["test_case_generator"],
             },
             {
+                "id": "code_generator",
                 "name": "Code Generator",
                 "role": "Creates the first implementation draft; Code Fixer uses actual pytest failures on the final attempt",
                 "trace": result["code_generator"],
             },
             {
+                "id": "reviewer",
                 "name": "Reviewer",
                 "role": "Runs generated tests and decides pass, retry, or iteration limit",
                 "trace": result["reviewer"],

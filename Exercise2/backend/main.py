@@ -17,6 +17,7 @@ if __package__:
     from .models import AgentRequest, AgentTrace, WorkflowState
     from .services.agent_client import generate_json
     from Exercise2.backend.workflow.workflow import build_agent_loop, build_agent_payload as _build_agent_payload
+    from Exercise2.backend.workflow.definition import get_workflow_definition
     from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS, RUNS_DIR
 else:
     backend_parent = Path(__file__).resolve().parents[2]
@@ -28,6 +29,7 @@ else:
         build_agent_loop,
         build_agent_payload as _build_agent_payload,
     )
+    from Exercise2.backend.workflow.definition import get_workflow_definition
     from Exercise2.backend.workflow.workflow_config import MAX_TEST_ATTEMPTS, RUNS_DIR
 
 __all__ = [
@@ -44,6 +46,7 @@ __all__ = [
     "preflight_run_agent",
     "run_agent",
     "run_agent_stream",
+    "workflow_definition",
 ]
 
 app = FastAPI(title="TDD Agent Visualization API")
@@ -77,6 +80,11 @@ def build_agent_payload(
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/workflow/definition")
+def workflow_definition() -> dict[str, Any]:
+    return get_workflow_definition()
 
 
 @app.post("/api/run-agent")

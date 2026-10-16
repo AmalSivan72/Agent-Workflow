@@ -2,6 +2,7 @@ import type {
   AgentNodeData,
   AgentRunResult,
   AgentStatus,
+  AgentTurnTrace,
   AgentTrace,
   TraceSection,
   ToolCallTrace,
@@ -16,11 +17,14 @@ type WorkflowInspectorProps = {
   runResult: AgentRunResult | null;
   activeNodeId: string | null;
   selectedTrace: AgentTrace | undefined;
+  selectedAgentTurns: AgentTurnTrace[];
+  selectedAgentTurnIndex: number | null;
   selectedToolCalls: ToolCallTrace[];
   selectedToolCall: ToolCallTrace | undefined;
   activeTab: TraceSection;
   specInput: string;
   onTabChange: (tab: TraceSection) => void;
+  onAgentTurnSelect: (turnIndex: number) => void;
   onToolCallSelect: (invocationId: string) => void;
 };
 
@@ -45,11 +49,14 @@ export function WorkflowInspector({
   runResult,
   activeNodeId,
   selectedTrace,
+  selectedAgentTurns,
+  selectedAgentTurnIndex,
   selectedToolCalls,
   selectedToolCall,
   activeTab,
   specInput,
   onTabChange,
+  onAgentTurnSelect,
   onToolCallSelect,
 }: WorkflowInspectorProps) {
   const status = nodeStatuses[selectedNode.id] ?? 'idle';
@@ -94,6 +101,27 @@ export function WorkflowInspector({
 
       {isAgent ? (
         <>
+          {selectedAgentTurns.length > 1 ? (
+            <div className="scrollbar-hidden mt-3 max-h-16 shrink-0 overflow-auto">
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Turn history</p>
+              <div className="flex flex-wrap gap-1.5" aria-label="Agent turn history">
+                {selectedAgentTurns.map((turn, index) => (
+                  <button
+                    type="button"
+                    className={`rounded-md border px-2 py-1 text-[10px] font-semibold transition ${
+                      (selectedAgentTurnIndex ?? selectedAgentTurns.length - 1) === index
+                        ? 'border-violet-300 bg-violet-50 text-violet-700'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-violet-200'
+                    }`}
+                    key={`${selectedNode.id}-turn-${index + 1}`}
+                    onClick={() => onAgentTurnSelect(index)}
+                  >
+                    Turn {index + 1}{turn.trace ? '' : ' · Running'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="mt-3 flex shrink-0 rounded-lg bg-slate-100 p-1" role="tablist" aria-label="Agent trace sections">
             {(['input', 'thinking', 'output'] as const).map((section) => (
               <button

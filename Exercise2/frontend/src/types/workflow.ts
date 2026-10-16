@@ -8,7 +8,12 @@ export type AgentTrace = {
   output: string;
 };
 
+export type AgentTurnTrace = {
+  trace: AgentTrace | null;
+};
+
 export type ApiAgent = {
+  id: string;
   name: string;
   role: string;
   trace: AgentTrace;
@@ -42,6 +47,42 @@ export type AgentNodeData = {
   summary: string;
   status: AgentStatus;
   kind: 'input' | 'agent' | 'tool' | 'terminal';
+  handles: WorkflowHandle[];
+};
+
+export type WorkflowHandle = {
+  id: string;
+  type: 'source' | 'target';
+  position: 'left' | 'right' | 'top' | 'bottom';
+  offset: number;
+};
+
+export type WorkflowDefinitionNode = {
+  id: string;
+  label: string;
+  summary: string;
+  kind: AgentNodeData['kind'];
+  position: { x: number; y: number };
+  width: number;
+  height: number;
+  event_ids: string[];
+  handles: WorkflowHandle[];
+};
+
+export type WorkflowDefinitionEdge = {
+  id: string;
+  source: string;
+  source_handle: string;
+  target: string;
+  target_handle: string;
+  label: string;
+  type?: string;
+  style: Record<string, string | number>;
+};
+
+export type WorkflowDefinition = {
+  nodes: WorkflowDefinitionNode[];
+  edges: WorkflowDefinitionEdge[];
 };
 
 export type TraceSection = keyof AgentTrace;

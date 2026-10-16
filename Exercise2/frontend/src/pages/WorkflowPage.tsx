@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   MarkerType,
   type Edge,
@@ -9,128 +9,155 @@ import { SpecificationPanel } from '../components/SpecificationPanel';
 import { WorkflowGraph } from '../components/WorkflowGraph';
 import { WorkflowHeader } from '../components/WorkflowHeader';
 import { WorkflowInspector } from '../components/WorkflowInspector';
-import { baseEdges, baseNodes, defaultSpec, getNodeHandles } from '../data/workflow';
+import { createWorkflowEdges, createWorkflowNodes, defaultSpec } from '../data/workflow';
 import type {
   AgentNodeData,
   AgentRunResult,
   AgentStatus,
-  AgentTrace,
+  AgentTurnTrace,
   StreamEvent,
   TraceSection,
   ToolCallTrace,
+  WorkflowDefinition,
 } from '../types/workflow';
 
-const eventNodeIds: Record<string, string> = {
-  test_case_generator: 'generator',
-  code_generator: 'coder',
-  reviewer: 'reviewer',
-  finish: 'complete',
-};
-
-const toolNodeIds: Record<string, string> = {
-  write_test_cases: 'write_file',
-  write_implementation: 'write_file',
-  run_pytest: 'run_pytest',
-};
-
-const toolEdgeIds: Record<string, string> = {
-  write_test_cases: 'e-generator-write-tests',
-  write_implementation: 'e-coder-write-implementation',
-  run_pytest: 'e-reviewer-pytest',
-};
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 function WorkflowPage() {
   const [specInput, setSpecInput] = useState(defaultSpec);
+  const [workflowDefinition, setWorkflowDefinition] = useState<WorkflowDefinition | null>(null);
+  const [graphLoading, setGraphLoading] = useState(true);
   const [runResult, setRunResult] = useState<AgentRunResult | null>(null);
-  const [traces, setTraces] = useState<Record<string, AgentTrace>>({});
+  const [agentTurns, setAgentTurns] = useState<Record<string, AgentTurnTrace[]>>({});
+  const [selectedAgentTurnIndex, setSelectedAgentTurnIndex] = useState<number | null>(null);
   const [toolCalls, setToolCalls] = useState<ToolCallTrace[]>([]);
-  const [nodeStatuses, setNodeStatuses] = useState<Record<string, AgentStatus>>(() =>
-    Object.fromEntries(baseNodes.map((node) => [node.id, 'idle'])),
-  );
+  const [nodeStatuses, setNodeStatuses] = useState<Record<string, AgentStatus>>({});
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, { width: number; height: number }>>({});
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null);
   const [traversedEdges, setTraversedEdges] = useState<string[]>([]);
   const [failedEdges, setFailedEdges] = useState<string[]>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState('requirement');
+  const [selectedNodeId, setSelectedNodeId] = useState('');
   const [activeTab, setActiveTab] = useState<TraceSection>('input');
   const [selectedToolInvocationId, setSelectedToolInvocationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedNode = baseNodes.find((node) => node.id === selectedNodeId) ?? baseNodes[0];
-  const selectedTrace = traces[selectedNodeId];
-  const selectedToolCalls = toolCalls.filter((call) => toolNodeIds[call.node] === selectedNodeId);
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadDefinition = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/workflow/definition`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Workflow definition request failed (${response.status}).`);
+        }
+
+        const definition = await response.json() as WorkflowDefinition;
+        setWorkflowDefinition(definition);
+        setNodeStatuses(Object.fromEntries(definition.nodes.map((node) => [node.id, 'idle'])));
+        setSelectedNodeId(definition.nodes.find((node) => node.kind === 'input')?.id ?? definition.nodes[0]?.id ?? '');
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Unable to load the workflow definition.');
+      } finally {
+        if (!controller.signal.aborted) setGraphLoading(false);
+      }
+    };
+
+    void loadDefinition();
+    return () => controller.abort();
+  }, []);
+
+  const eventNodeIds = useMemo(
+    () => Object.fromEntries(
+      workflowDefinition?.nodes.flatMap((node) => node.event_ids.map((eventId) => [eventId, node.id] as const)) ?? [],
+    ),
+    [workflowDefinition],
+  );
+  const toolNodeIds = useMemo(
+    () => Object.fromEntries(
+      workflowDefinition?.nodes
+        .filter((node) => node.kind === 'tool')
+        .flatMap((node) => node.event_ids.map((eventId) => [eventId, node.id] as const)) ?? [],
+    ),
+    [workflowDefinition],
+  );
+  const inputNodeId = workflowDefinition?.nodes.find((node) => node.kind === 'input')?.id;
+  const selectedNodeIdResolved = workflowDefinition?.nodes.some((node) => node.id === selectedNodeId)
+    ? selectedNodeId
+    : inputNodeId ?? '';
+  const selectedNodeDefinition = workflowDefinition?.nodes.find((node) => node.id === selectedNodeIdResolved);
+  const selectedAgentTurns = agentTurns[selectedNodeIdResolved] ?? [];
+  const selectedTrace = selectedAgentTurns[
+    selectedAgentTurnIndex ?? selectedAgentTurns.length - 1
+  ]?.trace ?? undefined;
+  const selectedToolCalls = toolCalls.filter((call) => toolNodeIds[call.node] === selectedNodeIdResolved);
   const selectedToolCall =
     selectedToolCalls.find((call) => call.invocation_id === selectedToolInvocationId) ??
     selectedToolCalls[selectedToolCalls.length - 1];
 
   const nodes = useMemo<Node<AgentNodeData>[]>(
-    () =>
-      baseNodes.map((node) => ({
-        ...node,
-        position: nodePositions[node.id] ?? node.position,
-        measured: nodeMeasurements[node.id] ?? node.measured,
-        selected: node.id === selectedNodeId,
-        handles: getNodeHandles(node.id, node.data.kind),
-        data: {
-          ...node.data,
-          status: nodeStatuses[node.id] ?? 'idle',
-        },
-      })),
-    [nodeMeasurements, nodePositions, nodeStatuses, selectedNodeId],
+    () => workflowDefinition
+      ? createWorkflowNodes(workflowDefinition, nodeStatuses, nodePositions, nodeMeasurements, selectedNodeIdResolved)
+      : [],
+    [nodeMeasurements, nodePositions, nodeStatuses, selectedNodeIdResolved, workflowDefinition],
   );
+  const selectedFlowNode = nodes.find((node) => node.id === selectedNodeIdResolved);
 
   const edges = useMemo<Edge[]>(
-    () =>
-      baseEdges.map((edge) => ({
+    () => (workflowDefinition ? createWorkflowEdges(workflowDefinition) : []).map((edge) => {
+      const failed = failedEdges.includes(edge.id);
+      const active = loading && edge.id === activeEdgeId && !failed;
+      const traversed = traversedEdges.includes(edge.id);
+      const color = failed
+        ? '#dc2626'
+        : active
+          ? '#7c3aed'
+          : traversed
+            ? '#16a34a'
+            : '#75658f';
+
+      return {
         ...edge,
-        animated: loading && edge.id === activeEdgeId && !failedEdges.includes(edge.id),
+        animated: active,
         style: {
           ...edge.style,
-          stroke: failedEdges.includes(edge.id)
-            ? '#dc2626'
-            : loading && edge.id === activeEdgeId
-              ? '#7c3aed'
-              : traversedEdges.includes(edge.id)
-                ? '#16a34a'
-                : '#75658f',
-          strokeWidth: loading && edge.id === activeEdgeId ? 3.5 : 2.5,
+          stroke: color,
+          strokeWidth: active ? 3.5 : 2.5,
         },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: failedEdges.includes(edge.id)
-            ? '#dc2626'
-            : loading && edge.id === activeEdgeId
-              ? '#7c3aed'
-              : traversedEdges.includes(edge.id)
-                ? '#16a34a'
-                : '#75658f',
-        },
-      })),
-    [activeEdgeId, failedEdges, loading, traversedEdges],
+        markerEnd: { type: MarkerType.ArrowClosed, color },
+      };
+    }),
+    [activeEdgeId, failedEdges, loading, traversedEdges, workflowDefinition],
   );
 
+  const findEdge = (source: string | undefined, target: string | undefined) =>
+    workflowDefinition?.edges.find((edge) => edge.source === source && edge.target === target);
+
   const handleRunAgent = async () => {
+    if (!workflowDefinition || !inputNodeId) return;
     let currentFlowNodeId: string | null = null;
     let currentAgentEdgeId: string | null = null;
     setError(null);
     setRunResult(null);
-    setTraces({});
+    setAgentTurns({});
+    setSelectedAgentTurnIndex(null);
     setToolCalls([]);
-    setNodeStatuses(Object.fromEntries(baseNodes.map((node) => [node.id, 'idle'])));
+    setNodeStatuses(Object.fromEntries(workflowDefinition.nodes.map((node) => [node.id, 'idle'])));
     setActiveNodeId(null);
     setActiveEdgeId(null);
     setTraversedEdges([]);
     setFailedEdges([]);
-    setSelectedNodeId('requirement');
+    setSelectedNodeId(inputNodeId);
     setActiveTab('input');
     setSelectedToolInvocationId(null);
     setLoading(true);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/run-agent/stream', {
+      const response = await fetch(`${API_BASE_URL}/api/run-agent/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ specification: specInput }),
@@ -166,24 +193,37 @@ function WorkflowPage() {
             if (!nodeId) continue;
 
             if (event.type === 'node_start') {
-              const sourceId = event.from ? eventNodeIds[event.from] ?? event.from : 'requirement';
-              currentAgentEdgeId = baseEdges.find(
-                (edge) => edge.source === sourceId && edge.target === nodeId,
-              )?.id ?? null;
+              const sourceId = event.from ? eventNodeIds[event.from] ?? event.from : inputNodeId;
+              currentAgentEdgeId = findEdge(sourceId, nodeId)?.id ?? null;
               currentFlowNodeId = nodeId;
               setActiveNodeId(nodeId);
               setActiveEdgeId(currentAgentEdgeId);
               setSelectedNodeId(nodeId);
               setActiveTab('input');
               setSelectedToolInvocationId(null);
-              setNodeStatuses((current) => ({ ...current, requirement: 'success', [nodeId]: 'active' }));
+              setSelectedAgentTurnIndex(null);
+              setAgentTurns((current) => ({
+                ...current,
+                [nodeId]: [...(current[nodeId] ?? []), { trace: null }],
+              }));
+              setNodeStatuses((current) => ({ ...current, [inputNodeId]: 'success', [nodeId]: 'active' }));
             } else {
               setNodeStatuses((current) => ({ ...current, [nodeId]: 'success' }));
               if (currentAgentEdgeId) {
                 setTraversedEdges((current) => [...new Set([...current, currentAgentEdgeId!])]);
               }
-              if (event.trace && nodeId !== 'complete') {
-                setTraces((current) => ({ ...current, [nodeId]: event.trace! }));
+              if (event.trace) {
+                setAgentTurns((current) => {
+                  const turns = current[nodeId] ?? [];
+                  const lastTurn = turns[turns.length - 1];
+                  return {
+                    ...current,
+                    [nodeId]: lastTurn
+                      ? [...turns.slice(0, -1), { trace: event.trace! }]
+                      : [...turns, { trace: event.trace! }],
+                  };
+                });
+                setSelectedAgentTurnIndex(null);
               }
             }
           }
@@ -193,11 +233,11 @@ function WorkflowPage() {
             const owner = event.owner;
             const nodeId = toolEventId ? toolNodeIds[toolEventId] : undefined;
             const ownerId = owner ? eventNodeIds[owner] : undefined;
-            if (!toolEventId || !nodeId || !ownerId || !event.invocation_id || !event.tool_name) continue;
+            if (!toolEventId || !nodeId || !owner || !ownerId || !event.invocation_id || !event.tool_name) continue;
             const toolCall: ToolCallTrace = {
               invocation_id: event.invocation_id,
               node: toolEventId,
-              owner: owner!,
+              owner,
               tool_name: event.tool_name,
               input: event.input ?? '',
               output: '',
@@ -206,9 +246,10 @@ function WorkflowPage() {
             currentFlowNodeId = nodeId;
             setToolCalls((current) => [...current, toolCall]);
             setActiveNodeId(nodeId);
-            setActiveEdgeId(toolEdgeIds[toolEventId] ?? null);
+            setActiveEdgeId(findEdge(ownerId, nodeId)?.id ?? null);
             setSelectedNodeId(nodeId);
             setSelectedToolInvocationId(event.invocation_id);
+            setSelectedAgentTurnIndex(null);
             setActiveTab('input');
             setNodeStatuses((current) => ({ ...current, [ownerId]: 'active', [nodeId]: 'active' }));
           }
@@ -217,13 +258,16 @@ function WorkflowPage() {
             const toolCall = event.tool_call;
             const ownerId = event.owner ? eventNodeIds[event.owner] : undefined;
             const toolNodeId = toolNodeIds[toolCall.node];
+            const toolEdgeId = findEdge(ownerId, toolNodeId)?.id;
             setToolCalls((current) => current.map((call) =>
               call.invocation_id === toolCall.invocation_id ? toolCall : call,
             ));
             if (toolNodeId) {
-              setNodeStatuses((current) => ({ ...current, [toolNodeId]: toolCall.status === 'success' ? 'success' : 'warning' }));
+              setNodeStatuses((current) => ({
+                ...current,
+                [toolNodeId]: toolCall.status === 'success' ? 'success' : 'warning',
+              }));
             }
-            const toolEdgeId = toolEdgeIds[toolCall.node];
             if (toolEdgeId && toolCall.status === 'success') {
               setTraversedEdges((current) => [...new Set([...current, toolEdgeId])]);
             } else if (toolEdgeId) {
@@ -238,32 +282,43 @@ function WorkflowPage() {
           }
 
           if (event.type === 'complete' && event.result) {
-            const completedTraces = Object.fromEntries(
-              event.result.agents.map((agent, index) => [
-                ['generator', 'coder', 'reviewer'][index],
-                agent.trace,
-              ]),
-            );
+            const terminalNodeId = workflowDefinition.nodes.find((node) => node.kind === 'terminal')?.id;
+            const reviewerNodeId = workflowDefinition.nodes
+              .filter((node) => node.kind === 'agent')
+              .at(-1)?.id;
+            const completionEdgeId = findEdge(reviewerNodeId, terminalNodeId)?.id;
+            const terminalStatus = event.result.status === 'completed' ? 'success' : 'warning';
+
             setRunResult(event.result);
-            setTraces(completedTraces);
+            setAgentTurns((current) => {
+              const updated = { ...current };
+              for (const agent of event.result!.agents) {
+                const nodeId = eventNodeIds[agent.id];
+                if (nodeId && !updated[nodeId]?.length) {
+                  updated[nodeId] = [{ trace: agent.trace }];
+                }
+              }
+              return updated;
+            });
             setToolCalls(event.result.tool_calls ?? []);
-            setNodeStatuses((current) => ({
-              ...current,
-              requirement: 'success',
-              generator: 'success',
-              coder: 'success',
-              reviewer: event.result?.status === 'completed' ? 'success' : 'warning',
-              complete: event.result?.status === 'completed' ? 'success' : 'warning',
-            }));
-            const completionEdge = 'e-reviewer-complete';
-            setActiveNodeId('complete');
-            setActiveEdgeId(completionEdge);
-            if (event.result.status === 'completed') {
-              setTraversedEdges((current) => [...new Set([...current, completionEdge])]);
-            } else {
-              setFailedEdges((current) => [...new Set([...current, completionEdge])]);
+            setNodeStatuses((current) => {
+              const updated = { ...current };
+              for (const node of workflowDefinition.nodes) {
+                if (node.kind === 'input' || node.kind === 'agent') updated[node.id] = 'success';
+              }
+              if (reviewerNodeId) updated[reviewerNodeId] = terminalStatus;
+              if (terminalNodeId) updated[terminalNodeId] = terminalStatus;
+              return updated;
+            });
+            setActiveNodeId(terminalNodeId ?? null);
+            setActiveEdgeId(completionEdgeId ?? null);
+            if (completionEdgeId && event.result.status === 'completed') {
+              setTraversedEdges((current) => [...new Set([...current, completionEdgeId])]);
+            } else if (completionEdgeId) {
+              setFailedEdges((current) => [...new Set([...current, completionEdgeId])]);
             }
-            setSelectedNodeId('reviewer');
+            setSelectedNodeId(reviewerNodeId ?? terminalNodeId ?? inputNodeId);
+            setSelectedAgentTurnIndex(null);
             setActiveTab('output');
             receivedCompleteEvent = true;
           }
@@ -287,15 +342,17 @@ function WorkflowPage() {
   };
 
   const handleReset = () => {
+    if (!workflowDefinition) return;
     setRunResult(null);
-    setTraces({});
+    setAgentTurns({});
+    setSelectedAgentTurnIndex(null);
     setToolCalls([]);
-    setNodeStatuses(Object.fromEntries(baseNodes.map((node) => [node.id, 'idle'])));
+    setNodeStatuses(Object.fromEntries(workflowDefinition.nodes.map((node) => [node.id, 'idle'])));
     setActiveNodeId(null);
     setActiveEdgeId(null);
     setTraversedEdges([]);
     setFailedEdges([]);
-    setSelectedNodeId('requirement');
+    setSelectedNodeId(inputNodeId ?? '');
     setActiveTab('input');
     setSelectedToolInvocationId(null);
     setError(null);
@@ -304,6 +361,7 @@ function WorkflowPage() {
   const handleNodeClick = (_event: React.MouseEvent, node: Node<AgentNodeData>) => {
     setSelectedNodeId(node.id);
     setActiveTab('input');
+    setSelectedAgentTurnIndex(null);
     const latestCall = toolCalls.filter((call) => toolNodeIds[call.node] === node.id).at(-1);
     setSelectedToolInvocationId(latestCall?.invocation_id ?? null);
   };
@@ -340,7 +398,12 @@ function WorkflowPage() {
 
   return (
     <div className="min-h-screen bg-[#f8f7fc] text-slate-900 lg:h-screen lg:overflow-hidden">
-      <WorkflowHeader loading={loading} onReset={handleReset} onRun={handleRunAgent} />
+      <WorkflowHeader
+        loading={loading}
+        disabled={graphLoading || !workflowDefinition}
+        onReset={handleReset}
+        onRun={handleRunAgent}
+      />
       <main className="mx-auto max-w-[1800px] px-4 py-4 sm:px-6 lg:flex lg:h-[calc(100%-60px)] lg:min-h-0 lg:flex-col lg:px-8 lg:py-3">
         <SpecificationPanel value={specInput} onChange={setSpecInput} />
         {error ? (
@@ -357,24 +420,34 @@ function WorkflowPage() {
             onNodesChange={handleNodesChange}
             onNodeDragStop={handleNodeDragStop}
           />
-          <WorkflowInspector
-            selectedNode={selectedNode}
-            nodeStatuses={nodeStatuses}
-            loading={loading}
-            error={error}
-            runResult={runResult}
-            activeNodeId={activeNodeId}
-            selectedTrace={selectedTrace}
-            selectedToolCalls={selectedToolCalls}
-            selectedToolCall={selectedToolCall}
-            activeTab={activeTab}
-            specInput={specInput}
-            onTabChange={setActiveTab}
-            onToolCallSelect={(invocationId) => {
-              setSelectedToolInvocationId(invocationId);
-              setActiveTab('input');
-            }}
-          />
+          {selectedNodeDefinition && selectedFlowNode ? (
+            <WorkflowInspector
+              selectedNode={selectedFlowNode}
+              nodeStatuses={nodeStatuses}
+              loading={loading}
+              error={error}
+              runResult={runResult}
+              activeNodeId={activeNodeId}
+              selectedTrace={selectedTrace}
+              selectedAgentTurns={selectedAgentTurns}
+              selectedAgentTurnIndex={selectedAgentTurnIndex}
+              selectedToolCalls={selectedToolCalls}
+              selectedToolCall={selectedToolCall}
+              activeTab={activeTab}
+              specInput={specInput}
+              onTabChange={setActiveTab}
+              onAgentTurnSelect={setSelectedAgentTurnIndex}
+              onToolCallSelect={(invocationId) => {
+                setSelectedToolInvocationId(invocationId);
+                setSelectedAgentTurnIndex(null);
+                setActiveTab('input');
+              }}
+            />
+          ) : (
+            <div className="flex min-h-[440px] items-center justify-center rounded-2xl border border-violet-100 bg-white text-sm text-slate-500 shadow-sm lg:h-full lg:min-h-0">
+              {graphLoading ? 'Loading workflow definition…' : 'Workflow inspector unavailable.'}
+            </div>
+          )}
         </div>
       </main>
     </div>

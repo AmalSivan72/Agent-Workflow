@@ -10,7 +10,7 @@ from google.genai import types
 
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(ENV_FILE)
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
 @lru_cache(maxsize=1)
@@ -23,8 +23,7 @@ def get_gemini_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def generate_json(prompt: str) -> str:
-    """Generate an agent trace as a JSON object."""
+def _generate_with_gemini(prompt: str) -> str:
     response = get_gemini_client().models.generate_content(
         model=GEMINI_MODEL,
         contents=prompt,
@@ -43,3 +42,18 @@ def generate_json(prompt: str) -> str:
         ),
     )
     return getattr(response, "text", "") or ""
+
+
+def generate_json(prompt: str) -> str:
+    """Generate an agent trace using the provider selected by ``LLM_PROVIDER``."""
+    load_dotenv(ENV_FILE)
+    provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+    if provider == "gemini":
+        return _generate_with_gemini(prompt)
+    if provider == "azure":
+        from .azure_client import generate_json as generate_with_azure
+
+        return generate_with_azure(prompt)
+    raise ValueError(
+        f"Unsupported LLM_PROVIDER {provider!r}. Choose 'gemini' or 'azure'."
+    )
